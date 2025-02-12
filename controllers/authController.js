@@ -1,5 +1,5 @@
 const { SignupSchema } = require('../middlewares/validator');
-const User = require('../models/userModel'); // Renamed to User for clarity
+const User = require('../models/userModel');
 const { doHash } = require('../utils/hashing');
 
 exports.signup = async (req, res) => {

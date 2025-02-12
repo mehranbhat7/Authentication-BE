@@ -1,3 +1,5 @@
+require('dotenv').config(); // Load environment variables from .env
+
 const express = require('express');
 const app = express();
 const cors = require('cors');
@@ -11,19 +13,23 @@ app.use(cookieParser());
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Connect to the database
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
-    console.log('dataBase connected');
+    console.log('Database connected');
   })
   .catch(err => {
-    console.log(err);
+    console.error('Database connection error:', err);
   });
+
 app.get('/', (req, res) => {
-  res.json({ messagae: 'hii how are you' });
+  res.json({ message: 'Hi, how are you?' });
 });
 
 app.use('/api/auth/', authRouter);
+
 app.listen(process.env.PORT, () => {
-  console.log('server started');
+  console.log('Server started on port ' + process.env.PORT);
 });
