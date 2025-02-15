@@ -2,11 +2,11 @@ const { SignupSchema, signinSchema } = require('../middlewares/validator');
 const User = require('../models/userModel');
 const jwt = require('jsonwebtoken');
 const { doHash, doHashValidation } = require('../utils/hashing');
+const transport = require('../middlewares/sendMail');
 
 exports.signup = async (req, res) => {
   const { email, password } = req.body;
   try {
-    // Validate input data
     const { error } = SignupSchema.validate({ email, password });
     if (error) {
       return res
@@ -14,7 +14,6 @@ exports.signup = async (req, res) => {
         .json({ success: false, message: 'Invalid email or password format' });
     }
 
-    // Check if a user with this email already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res
@@ -22,19 +21,15 @@ exports.signup = async (req, res) => {
         .json({ success: false, message: 'User already exists' });
     }
 
-    // Hash the password
     const hashedPassword = await doHash(password, 12);
 
-    // Create a new user
     const newUser = new User({
       email,
       password: hashedPassword,
     });
 
-    // Save the new user to the database
     const result = await newUser.save();
 
-    // Remove the password from the result before sending the response
     result.password = undefined;
     return res.status(201).json({
       success: true,
@@ -93,6 +88,50 @@ exports.signin = async (req, res) => {
         token,
         message: 'logged in successfully',
       });
+  } catch (error) {
+    console.log(error);
+  }
+};
+exports.signout = async (req, res) => {
+  res
+    .clearCookie('Authorization')
+    .status(200)
+    .json({ success: true, message: 'logged out successfully' });
+};
+exports.sendVerificationCode = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const existingUser = await User.findOne({ email });
+    if (!existingUser) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'User does not exists!' });
+    }
+    if (existingUser.verified) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'You are already verified!' });
+    }
+
+    const codeValue = Math.floor(Math.random() * 1000000).toString();
+    let info = await transport.sendMail({
+      from: process.env.NODE_CODE_SENDING_EMAIL_ADDRESS,
+      to: existingUser.email,
+      subject: 'verification code',
+      html: '<h1>' + codeValue + '</h1>',
+    });
+
+    if (info.accepted[0] === existingUser.email) {
+      const hashedCodeValue = hmacProcess(
+        codeValue,
+        process.env.HMAC_VERIFICATION_CODE_SECRET
+      );
+      existingUser.verificationCode = hashedCodeValue;
+      existingUser.verificationCodeValidation = Date.now();
+      await existingUser.save();
+      return res.status(200).json({ success: true, message: 'Code sent!' });
+    }
+    res.status(400).json({ success: false, message: 'Code sent failed!' });
   } catch (error) {
     console.log(error);
   }
